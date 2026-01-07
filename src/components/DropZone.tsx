@@ -36,6 +36,9 @@ export const DropZone: React.FC = () => {
           : 'border-gray-300 dark:border-gray-600 hover:border-primary-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
         }
       `}
+      role="region"
+      aria-label="Image file drop zone. Drag and drop images here or browse to select files."
+      tabIndex={0}
     >
       <input {...getInputProps()} />
 

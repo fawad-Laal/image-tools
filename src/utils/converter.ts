@@ -2,6 +2,13 @@ import heic2any from 'heic2any';
 import { ConvertOptions, ConvertResult, OutputFormat } from '../types';
 
 /**
+ * Check if Web Workers are supported
+ */
+export const isWorkerSupported = (): boolean => {
+  return typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined';
+};
+
+/**
  * Get MIME type for output format
  */
 export const getMimeType = (format: OutputFormat): string => {
@@ -194,7 +201,12 @@ export const convertImage = async (
 
   // Generate filename
   const originalName = file.name.replace(/\.[^/.]+$/, '');
-  const filename = `${originalName}${extension}`;
+  const prefix = options.namePrefix || '';
+  const suffix = options.nameSuffix || '';
+  const timestamp = options.addTimestamp ? `_${new Date().toISOString().split('T')[0]}` : '';
+  const dimensionStr = options.addDimensions ? `_${dimensions.width}x${dimensions.height}` : '';
+  
+  const filename = `${prefix}${originalName}${suffix}${timestamp}${dimensionStr}${extension}`;
 
   // Calculate reduction percentage
   const convertedSize = outputBlob.size;

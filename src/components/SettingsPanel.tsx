@@ -10,9 +10,20 @@ const OUTPUT_FORMATS: { id: OutputFormat; name: string; description: string }[] 
   { id: 'avif', name: 'AVIF', description: 'Next-gen, Chrome/Firefox only' },
 ];
 
+const RESIZE_PRESETS = [
+  { id: 'original', name: 'Original Size', width: undefined, height: undefined },
+  { id: '4k', name: '4K (3840px)', width: 3840, height: 2160 },
+  { id: 'fhd', name: 'Full HD (1920px)', width: 1920, height: 1080 },
+  { id: 'hd', name: 'HD (1280px)', width: 1280, height: 720 },
+  { id: 'medium', name: 'Medium (800px)', width: 800, height: 800 },
+  { id: 'thumbnail', name: 'Thumbnail (400px)', width: 400, height: 400 },
+  { id: 'custom', name: 'Custom', width: undefined, height: undefined },
+];
+
 export const SettingsPanel: React.FC = () => {
   const { state, dispatch } = useConverter();
   const { options } = state;
+  const [resizePreset, setResizePreset] = React.useState('original');
 
   const handleOutputFormatChange = (format: OutputFormat) => {
     dispatch({ type: 'SET_OUTPUT_FORMAT', payload: format });
@@ -29,6 +40,11 @@ export const SettingsPanel: React.FC = () => {
         maxHeight: preset.maxHeight,
       },
     });
+    // Update resize preset based on dimensions
+    if (preset.maxWidth) {
+      const matched = RESIZE_PRESETS.find(r => r.width === preset.maxWidth);
+      setResizePreset(matched ? matched.id : 'custom');
+    }
   };
 
   const handleQualityChange = (quality: number) => {
@@ -38,8 +54,24 @@ export const SettingsPanel: React.FC = () => {
     });
   };
 
+  const handleResizePresetChange = (presetId: string) => {
+    setResizePreset(presetId);
+    const preset = RESIZE_PRESETS.find(p => p.id === presetId);
+    if (preset && presetId !== 'custom') {
+      dispatch({
+        type: 'SET_OPTIONS',
+        payload: { 
+          maxWidth: preset.width, 
+          maxHeight: preset.height,
+          preset: 'custom' 
+        },
+      });
+    }
+  };
+
   const handleDimensionChange = (dimension: 'maxWidth' | 'maxHeight', value: string) => {
     const numValue = value ? parseInt(value, 10) : undefined;
+    setResizePreset('custom');
     dispatch({
       type: 'SET_OPTIONS',
       payload: { [dimension]: numValue, preset: 'custom' },
@@ -60,15 +92,17 @@ export const SettingsPanel: React.FC = () => {
       </h2>
 
       {/* Output Format Selector */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+      <fieldset className="mb-6">
+        <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Output Format
-        </label>
-        <div className="grid grid-cols-2 gap-2">
+        </legend>
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Select output format">
           {OUTPUT_FORMATS.map((format) => (
             <button
               key={format.id}
               onClick={() => handleOutputFormatChange(format.id)}
+              type="button"
+              aria-label={`Select ${format.name} format - ${format.description}`}
               className={`
                 px-3 py-2 text-sm font-medium rounded-lg border-2 transition-all
                 ${options.outputFormat === format.id
@@ -81,19 +115,21 @@ export const SettingsPanel: React.FC = () => {
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
           {OUTPUT_FORMATS.find(f => f.id === options.outputFormat)?.description}
         </p>
-      </div>
+      </fieldset>
 
       {/* Preset Selector */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label htmlFor="preset-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Preset
         </label>
         <select
+          id="preset-select"
           value={options.preset || 'custom'}
           onChange={(e) => handlePresetChange(e.target.value as PresetType)}
+          aria-label="Select quality preset"
           className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         >
           {presetList.map((preset) => (
@@ -112,20 +148,25 @@ export const SettingsPanel: React.FC = () => {
       {/* Quality Slider */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor="quality-slider" className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Quality
           </label>
-          <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">
+          <span className="text-sm font-semibold text-primary-600 dark:text-primary-400" aria-live="polite">
             {options.quality}%
           </span>
         </div>
         <input
+          id="quality-slider"
           type="range"
           min="1"
           max="100"
           value={options.quality}
           onChange={(e) => handleQualityChange(parseInt(e.target.value, 10))}
           disabled={options.lossless}
+          aria-label={`Quality: ${options.quality}%`}
+          aria-valuenow={options.quality}
+          aria-valuemin={1}
+          aria-valuemax={100}
           className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600 disabled:opacity-50"
         />
         <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -136,31 +177,49 @@ export const SettingsPanel: React.FC = () => {
 
       {/* Dimensions */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Max Dimensions (px)
+        <label htmlFor="resize-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Resize
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <input
-              type="number"
-              placeholder="Width"
-              value={options.maxWidth || ''}
-              onChange={(e) => handleDimensionChange('maxWidth', e.target.value)}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+        <select
+          id="resize-select"
+          value={resizePreset}
+          onChange={(e) => handleResizePresetChange(e.target.value)}
+          aria-label="Select resize preset"
+          className="w-full px-3 py-2 mb-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        >
+          {RESIZE_PRESETS.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.name}
+            </option>
+          ))}
+        </select>
+        
+        {resizePreset === 'custom' && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <input
+                type="number"
+                placeholder="Width"
+                value={options.maxWidth || ''}
+                onChange={(e) => handleDimensionChange('maxWidth', e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <input
+                type="number"
+                placeholder="Height"
+                value={options.maxHeight || ''}
+                onChange={(e) => handleDimensionChange('maxHeight', e.target.value)}
+                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
           </div>
-          <div>
-            <input
-              type="number"
-              placeholder="Height"
-              value={options.maxHeight || ''}
-              onChange={(e) => handleDimensionChange('maxHeight', e.target.value)}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-          </div>
-        </div>
+        )}
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Leave empty to keep original size
+          {resizePreset === 'original' ? 'Images will keep their original dimensions' : 
+           resizePreset === 'custom' ? 'Enter custom max dimensions' : 
+           'Images larger than this will be scaled down'}
         </p>
       </div>
 

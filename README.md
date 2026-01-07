@@ -8,13 +8,21 @@
 
 ## ✨ Features
 
+### Core Capabilities
 - **🔒 Privacy First** - All processing happens in your browser. No uploads, no tracking.
 - **📸 Multiple Formats** - Convert HEIC, JPEG, PNG, GIF, BMP, TIFF to WebP, JPEG, PNG, or AVIF
-- **⚡ Fast & Efficient** - Sequential processing prevents memory issues
-- **🛒 E-commerce Ready** - Built-in presets for product images, thumbnails, banners
-- **📦 Batch Processing** - Convert up to 50 images at once
-- **🌙 Dark Mode** - Beautiful dark-first design
-- **📱 Responsive** - Works on desktop, tablet, and mobile
+- **⚡ Web Workers** - Background processing for lightning-fast conversions
+- **📦 Batch Processing** - Convert up to 50 images at once with sequential processing
+- **🌙 Dark Mode** - Beautiful dark-first design with system preference support
+
+### Advanced Features (v1.0)
+- **🔄 Before/After Comparison** - Interactive slider to visualize quality vs size
+- **📱 PWA Support** - Install as app, works offline
+- **📊 Conversion History** - Track your conversions with statistics
+- **🏷️ Advanced Naming** - Custom prefixes, suffixes, timestamps, dimensions
+- **🛒 E-commerce Presets** - Product images, thumbnails, banners
+- **📐 Resize Presets** - 4K, FHD, HD, Medium, Thumbnail, or Custom
+- **♿ Fully Accessible** - WCAG 2.1 Level AA compliant
 
 ## 🚀 Quick Start
 

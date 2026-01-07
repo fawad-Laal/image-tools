@@ -4,6 +4,7 @@ import { DropZone } from './components/DropZone';
 import { SettingsPanel } from './components/SettingsPanel';
 import { FileList } from './components/FileList';
 import { ActionBar } from './components/ActionBar';
+import { HistoryPanel } from './components/HistoryPanel';
 import { Footer } from './components/Footer';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
               <DropZone />
               <FileList />
               <ActionBar />
+              <HistoryPanel />
             </div>
 
             {/* Right Column - Settings */}

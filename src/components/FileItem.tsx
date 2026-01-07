@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle, Check, Loader2, ImageIcon } from 'lucide-react';
+import { X, AlertCircle, Check, Loader2, ImageIcon, Eye } from 'lucide-react';
 import { SelectedFile } from '../types';
 import { formatFileSize } from '../utils/fileUtils';
 import { isHeicFile } from '../utils/converter';
+import { ComparisonSlider } from './ComparisonSlider';
 import heic2any from 'heic2any';
 
 interface FileItemProps {
@@ -12,6 +13,7 @@ interface FileItemProps {
 
 export const FileItem: React.FC<FileItemProps> = ({ file, onRemove }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
 
   useEffect(() => {
     // For HEIC files, we need to convert for preview
@@ -105,16 +107,41 @@ export const FileItem: React.FC<FileItemProps> = ({ file, onRemove }) => {
           </div>
         )}
         {statusIcon[file.status]}
+        
+        {/* Compare Button - show only when conversion is complete */}
+        {file.status === 'completed' && file.result && (
+          <button
+            onClick={() => setShowComparison(true)}
+            className="p-1 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded transition-colors"
+            aria-label="Compare before and after"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Remove Button */}
       <button
         onClick={() => onRemove(file.id)}
         disabled={file.status === 'converting'}
+        aria-label={`Remove ${file.file.name}`}
+        aria-disabled={file.status === 'converting'}
+        tabIndex={0}
         className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <X className="w-4 h-4" />
       </button>
+      
+      {/* Comparison Modal */}
+      {showComparison && file.result && previewUrl && (
+        <ComparisonSlider
+          originalImage={previewUrl}
+          convertedImage={URL.createObjectURL(file.result.blob)}
+          originalSize={file.file.size}
+          convertedSize={file.result.convertedSize}
+          onClose={() => setShowComparison(false)}
+        />
+      )}
     </div>
   );
 };

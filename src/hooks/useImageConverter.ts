@@ -1,12 +1,93 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { useConverter } from '../context/ConverterContext';
-import { convertImage } from '../utils/converter';
+import { convertImage, isHeicFile, convertHeicToBlob, isWorkerSupported } from '../utils/converter';
+import { addToHistory } from '../utils/history';
+import { ConvertResult } from '../types';
 import toast from 'react-hot-toast';
 
 export const useImageConverter = () => {
   const { state, dispatch } = useConverter();
   const { files, options, isConverting } = state;
   const abortRef = useRef(false);
+  const workerRef = useRef<Worker | null>(null);
+  const useWorker = useRef(isWorkerSupported());
+
+  // Initialize worker
+  useEffect(() => {
+    if (useWorker.current) {
+      try {
+        workerRef.current = new Worker(
+          new URL('../workers/converter.worker.ts', import.meta.url),
+          { type: 'module' }
+        );
+      } catch (error) {
+        console.warn('Failed to initialize Web Worker, falling back to main thread:', error);
+        useWorker.current = false;
+      }
+    }
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
+
+  /**
+   * Convert using Web Worker (if supported)
+   */
+  const convertWithWorker = useCallback(
+    async (file: File, fileId: string): Promise<ConvertResult> => {
+      return new Promise(async (resolve, reject) => {
+        if (!workerRef.current) {
+          reject(new Error('Worker not available'));
+          return;
+        }
+
+        // Preprocess HEIC if needed (HEIC conversion must happen on main thread)
+        let blob: Blob = file;
+        if (isHeicFile(file)) {
+          try {
+            blob = await convertHeicToBlob(file);
+          } catch (error) {
+            reject(error);
+            return;
+          }
+        }
+
+        const worker = workerRef.current;
+
+        const handleMessage = (e: MessageEvent) => {
+          const { type, payload, error, progress } = e.data;
+
+          if (type === 'progress' && progress !== undefined) {
+            dispatch({
+              type: 'UPDATE_FILE',
+              payload: { id: fileId, updates: { progress } },
+            });
+          } else if (type === 'success' && payload) {
+            worker.removeEventListener('message', handleMessage);
+            resolve(payload);
+          } else if (type === 'error') {
+            worker.removeEventListener('message', handleMessage);
+            reject(new Error(error || 'Worker conversion failed'));
+          }
+        };
+
+        worker.addEventListener('message', handleMessage);
+
+        // Send to worker
+        worker.postMessage({
+          type: 'convert',
+          payload: {
+            blob,
+            filename: file.name,
+            originalSize: file.size,
+            options,
+          },
+        });
+      });
+    },
+    [options, dispatch]
+  );
 
   /**
    * Process files ONE BY ONE (sequential) to prevent memory issues
@@ -43,12 +124,18 @@ export const useImageConverter = () => {
         // Small delay to allow UI to update and prevent blocking
         await new Promise(resolve => setTimeout(resolve, 50));
         
-        dispatch({
-          type: 'UPDATE_FILE',
-          payload: { id: selectedFile.id, updates: { progress: 50 } },
-        });
-
-        const result = await convertImage(selectedFile.file, options);
+        let result: ConvertResult;
+        
+        // Use Web Worker if available, otherwise fall back to main thread
+        if (useWorker.current && workerRef.current) {
+          result = await convertWithWorker(selectedFile.file, selectedFile.id);
+        } else {
+          dispatch({
+            type: 'UPDATE_FILE',
+            payload: { id: selectedFile.id, updates: { progress: 50 } },
+          });
+          result = await convertImage(selectedFile.file, options);
+        }
 
         dispatch({
           type: 'UPDATE_FILE',
@@ -57,6 +144,17 @@ export const useImageConverter = () => {
             updates: { status: 'completed', progress: 100, result },
           },
         });
+        
+        // Save to history
+        addToHistory({
+          filename: result.filename,
+          originalSize: result.originalSize,
+          convertedSize: result.convertedSize,
+          reduction: result.reduction,
+          format: options.outputFormat || 'webp',
+          quality: options.quality,
+        });
+        
         successCount++;
         
         // Brief pause between conversions to free up memory
@@ -83,7 +181,7 @@ export const useImageConverter = () => {
     if (errorCount > 0) {
       toast.error(`Failed to convert ${errorCount} file(s)`);
     }
-  }, [files, options, dispatch]);
+  }, [files, options, dispatch, convertWithWorker]);
 
   const cancelConversion = useCallback(() => {
     abortRef.current = true;
@@ -100,12 +198,18 @@ export const useImageConverter = () => {
       });
 
       try {
-        dispatch({
-          type: 'UPDATE_FILE',
-          payload: { id: fileId, updates: { progress: 50 } },
-        });
-
-        const result = await convertImage(selectedFile.file, options);
+        let result: ConvertResult;
+        
+        // Use Web Worker if available, otherwise fall back to main thread
+        if (useWorker.current && workerRef.current) {
+          result = await convertWithWorker(selectedFile.file, fileId);
+        } else {
+          dispatch({
+            type: 'UPDATE_FILE',
+            payload: { id: fileId, updates: { progress: 50 } },
+          });
+          result = await convertImage(selectedFile.file, options);
+        }
 
         dispatch({
           type: 'UPDATE_FILE',
@@ -127,7 +231,7 @@ export const useImageConverter = () => {
         toast.error(`Failed to convert ${selectedFile.file.name}`);
       }
     },
-    [files, options, dispatch]
+    [files, options, dispatch, convertWithWorker]
   );
 
   return {
@@ -136,5 +240,6 @@ export const useImageConverter = () => {
     cancelConversion,
     isConverting,
     options,
+    useWorker: useWorker.current,
   };
 };

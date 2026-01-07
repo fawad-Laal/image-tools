@@ -8,8 +8,11 @@ export interface ConvertOptions {
   maintainAspectRatio: boolean;
   stripMetadata: boolean;
   preset?: PresetType;
-  outputFormat: OutputFormat;
-}
+  outputFormat: OutputFormat;  // File naming options
+  namePrefix?: string;
+  nameSuffix?: string;
+  addTimestamp?: boolean;
+  addDimensions?: boolean;}
 
 export interface SelectedFile {
   id: string;
